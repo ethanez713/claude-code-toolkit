@@ -1,0 +1,167 @@
+{
+ "version": 1,
+ "note": "Detectors are DATA, not code: self-improve adds/retires them as tracked changes. Fields: id, pattern (python re), scope (any|user_prompt|bash_command|tool_result|skill_invocation), severity (high|med|low), enabled, added_run, retired_run, since, why. `since` is the ISO date the fix for that friction landed \u2014 earlier hits are dropped by the scanner, so a solved problem is not re-adjudicated every run; a hit after it is a genuine regression. Yield is reviewed each run; a detector with volume but no promoted findings gets retired.",
+ "patterns": [
+  {
+   "id": "user-interrupt",
+   "pattern": "Request interrupted by user",
+   "scope": "any",
+   "severity": "high",
+   "enabled": true,
+   "added_run": "run-000",
+   "why": "User stopped Claude mid-action: strongest signal that it was doing the wrong thing."
+  },
+  {
+   "id": "permission-refused",
+   "pattern": "user doesn't want to proceed with this tool use|user doesn't want to take this action",
+   "scope": "any",
+   "severity": "high",
+   "enabled": false,
+   "added_run": "run-000",
+   "retired_run": "run-006",
+   "why": "Denied tool call. Cannot serve its purpose: the 'doesn't want to proceed' string covers both a real permission denial and a considered mid-task redirect, so it never isolates an allowlist gap. 0 promoted findings runs 000-005; user-interrupt covers the rejection case."
+  },
+  {
+   "id": "correction-language",
+   "pattern": "\\b(no,|nope|actually,|that'?s wrong|incorrect|not what i|i said|stop\\b|don'?t do|do not do|why did you|revert that|undo that)",
+   "scope": "user_prompt",
+   "severity": "high",
+   "enabled": true,
+   "added_run": "run-000",
+   "why": "Explicit correction in a real user prompt (tool results excluded)."
+  },
+  {
+   "id": "tone-escalation",
+   "pattern": "\\b(again[.!]|AGAIN|i already (said|told)|for the (last|third) time|!!)",
+   "scope": "user_prompt",
+   "severity": "high",
+   "enabled": true,
+   "added_run": "run-000",
+   "why": "Repeated instruction / frustration: the rule exists but is not being followed."
+  },
+  {
+   "id": "tool-error",
+   "pattern": "\"is_error\":\\s*true|<tool_use_error>",
+   "scope": "any",
+   "severity": "med",
+   "enabled": true,
+   "added_run": "run-000",
+   "why": "Failed tool call. Volume is normal; clusters on one tool are the signal."
+  },
+  {
+   "id": "path-miss",
+   "pattern": "No such file or directory",
+   "scope": "any",
+   "severity": "med",
+   "enabled": true,
+   "added_run": "run-000",
+   "why": "Wrong path guess. 212 historical hits: often the venv/ vs .venv/ ambiguity."
+  },
+  {
+   "id": "command-timeout",
+   "pattern": "Command timed out",
+   "scope": "any",
+   "severity": "med",
+   "enabled": true,
+   "added_run": "run-000",
+   "why": "Timeout: usually a missing background-run or a wrong timeout default."
+  },
+  {
+   "id": "venv-guess-miss",
+   "pattern": "(venv/bin/python|\\.venv/bin/python)[^\\n]{0,80}No such file",
+   "scope": "any",
+   "severity": "med",
+   "enabled": true,
+   "added_run": "run-000",
+   "why": "The documented venv-path ambiguity actually biting. Falsifiable target: 0."
+  },
+  {
+   "id": "adb-pair-misuse",
+   "pattern": "adb(\\.exe)?\\s+pair|unknown command pair",
+   "scope": "bash_command",
+   "severity": "high",
+   "enabled": true,
+   "added_run": "run-000",
+   "since": "2026-07-19",
+   "why": "CLAUDE.md says use aconnect; raw adb pair cannot pair. Tests whether that rule holds. run-001: all 47 historical hits predate the aconnect wrapper (created 2026-07-18 23:26), so `since` is set to the day after; a hit now means the rule is being bypassed. run-003: scoped to bash_command \u2014 every hit this run was prose citing the command (the aconnect wrapper's own source, this skill's safety rules, vendor docs), not an invocation."
+  },
+  {
+   "id": "unrequested-screenshot",
+   "pattern": "(exec-out screencap|screencap -p|adb shell screencap)",
+   "scope": "any",
+   "severity": "low",
+   "enabled": false,
+   "added_run": "run-000",
+   "why": "RETIRED run-002c by user decision. Screenshots to evaluate UI changes are LEGITIMATE \u2014 the standing instruction is to take them only when needed, and the measured rate (15 per 100 Android tool calls in 2026-07-H2 -> ~0.6 in 2026-08) says that instruction is holding. The user declined a permission gate: session friction costs more than the residual screenshots. Do not re-treat this. Re-open only if the rate returns to double digits per 100 Android tool calls, which is the threshold that made it a token sink.",
+   "retired_run": "run-002c"
+  },
+  {
+   "id": "wsl-gui-attempt",
+   "pattern": "(--display-driver (wayland|x11)|libdecor|WAYLAND_DISPLAY)",
+   "scope": "bash_command",
+   "severity": "med",
+   "enabled": true,
+   "added_run": "run-000",
+   "since": "2026-07-04",
+   "why": "CLAUDE.md calls WSLg GUI a dead end; catches cycles burned on it anyway. run-001: the 2026-07-02/03 hits ARE the session that discovered and documented the dead end, not a violation of it; `since` set past that session. run-003: scoped to bash_command \u2014 every hit this run was prose citing the command (the aconnect wrapper's own source, this skill's safety rules, vendor docs), not an invocation."
+  },
+  {
+   "id": "system-python-install",
+   "pattern": "(?<![\\w/.-])(sudo\\s+)?(pip3?|python3?\\s+-m\\s+pip)\\s+install(?![^\\n]*(-r requirements|--require-hashes|--upgrade pip))",
+   "scope": "bash_command",
+   "severity": "high",
+   "enabled": true,
+   "added_run": "run-000",
+   "why": "Violates the venv/hash-lock rule. Security-relevant, so surfaces as a proposal. run-001: the original pattern matched ANY 'pip install' substring, so all 35 hits were false \u2014 venv-internal installs (./.venv/bin/pip install) and pip's own '--upgrade pip' notice. The leading (?<![\\w/.-]) drops path-qualified pip; only an unqualified/sudo pip now fires. run-003: scoped to bash_command \u2014 every hit this run was prose citing the command (the aconnect wrapper's own source, this skill's safety rules, vendor docs), not an invocation."
+  },
+  {
+   "id": "adb-multi-device",
+   "pattern": "more than one device/emulator",
+   "scope": "tool_result",
+   "severity": "high",
+   "enabled": true,
+   "added_run": "run-004",
+   "why": "The same phone attached twice (mDNS service name + ip:port) kills every untargeted adb command. Metric for `aconnect serial`; falsifiable target 0. Scoped to tool_result: the treatment wrote this exact error string into CLAUDE.md and android-smoketest, so at `any` scope the fix's own documentation scored as instances of the bug (0.25 -> 0.78/session, an artifact). An error-string detector must read what a command printed, never the line."
+  },
+  {
+   "id": "remoteviews-fatal",
+   "pattern": "Class not allowed to be inflated|RemoteViews\\$ActionException|doesn't have method|Error inflating AppWidget",
+   "scope": "tool_result",
+   "severity": "high",
+   "enabled": true,
+   "added_run": "run-005",
+   "since": "2026-09-09",
+   "why": "A widget is inflated and dispatched in the launcher by reflection, so these faults survive gradle, lint, `am start` and `logcat -b crash` and ship. Metric for chg-0012 (static check) and chg-0013 (host-log step); falsifiable target 0 AFTER the checks exist. tool_result scope: the same strings live in the skill that warns about them, and an `any`-scoped error detector counts its own documentation (see adb-multi-device)."
+  },
+  {
+   "id": "blocked-sleep-poll",
+   "pattern": "Blocked: sleep",
+   "scope": "tool_result",
+   "severity": "med",
+   "enabled": true,
+   "added_run": "run-006",
+   "why": "Claude polls background-task output or a logfile with `sleep N && cat/tail`, which the harness blocks (foreground sleep disallowed) and which is redundant (run_in_background re-invokes on completion). 14 hits across 6 projects. Falsifiable target: down."
+  },
+  {
+   "id": "write-tests-loaded",
+   "pattern": "\"name\":\\s*\"Skill\"[^\\n]{0,200}write-tests|write-tests/SKILL\\.md",
+   "scope": "any",
+   "severity": "low",
+   "enabled": false,
+   "added_run": "run-006",
+   "since": "2026-09-20",
+   "why": "Metric for the write-tests reminder (chg-0017, reverted). Retired: scope `any` also counted prose mentions of write-tests/SKILL.md, and the gate that replaced the reminder demands an invocation, which write-tests-invoked counts exactly.",
+   "retired_run": "run-006"
+  },
+  {
+   "id": "write-tests-invoked",
+   "pattern": "\\bwrite-tests\\b",
+   "scope": "skill_invocation",
+   "severity": "low",
+   "enabled": true,
+   "added_run": "run-006",
+   "why": "SUCCESS signal, not friction: a Skill-tool invocation of write-tests. Metric for the first-test-write deny gate (chg-0018); direction up. skill_invocation scope reads only the Skill tool's `skill` field, so prose mentions never count. `since` is the gate's ship date so the ignored-reminder week is not its baseline. Decisive read: `audit.py skills --since` coverage.",
+   "since": "2026-09-27"
+  }
+ ]
+}

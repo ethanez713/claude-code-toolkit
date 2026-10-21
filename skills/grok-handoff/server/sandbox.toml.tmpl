@@ -1,0 +1,10 @@
+# managed-by: grok-handoff doctor.py
+[profiles.claude-edit]
+extends = "workspace"
+read_write = ["~", "/mnt/c", "/dev/shm"]
+deny = [DENY]
+
+[profiles.claude-consult]
+extends = "read-only"
+restrict_network = false
+deny = [DENY]

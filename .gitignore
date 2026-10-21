@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+# self-improve writes its run state here; only the detector set is versioned
+skills/self-improve/state/*
+!skills/self-improve/state/patterns.json
+!skills/self-improve/state/.gitkeep

@@ -1,0 +1,13 @@
+{
+ "unit": "USD per token, Anthropic first-party list price",
+ "multipliers": {"cache_write_5m": 1.25, "cache_write_1h": 2.0, "cache_read": 0.1},
+ "models": {
+  "claude-opus-5-5": {"in": 4.0e-6, "out": 20.0e-6, "cache_read": 0.05},
+  "claude-opus-5": {"in": 5.0e-6, "out": 25.0e-6},
+  "claude-opus-4-8": {"in": 5.0e-6, "out": 25.0e-6},
+  "claude-sonnet-5-5": {"in": 2.0e-6, "out": 10.0e-6},
+  "claude-sonnet-5": {"in": 2.0e-6, "out": 10.0e-6},
+  "claude-haiku-4-5-20251001": {"in": 1.0e-6, "out": 5.0e-6},
+  "claude-sonnet-4-6": {"in": 3.0e-6, "out": 15.0e-6}
+ }
+}
