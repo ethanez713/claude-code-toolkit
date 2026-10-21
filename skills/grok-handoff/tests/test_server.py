@@ -50,7 +50,7 @@ def billing(pct, end, start="2020-01-01T00:00:00Z"):
 
 def load_statusline():
     import importlib.util
-    path = Path("~/.grok/statusline.py").expanduser()
+    path = SKILL / "grok_statusline.py"
     spec = importlib.util.spec_from_file_location(f"statusline_parity_{time.time_ns()}", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -86,6 +86,8 @@ class ServerTest(unittest.TestCase):
         os.environ["FAKE_GROK_MODE"] = "ok"
         os.environ.pop("FAKE_GROK_SLEEP", None)
         os.environ["GROK_HOME"] = str(self.home)
+        os.environ["GROK_MCP_GROK_STATUSLINE"] = str(SKILL / "grok_statusline.py")
+        os.environ["GROK_MCP_BURN_WINDOW"] = str(SKILL.parent / "self-improve" / "scripts" / "burn_window.py")
         os.environ["CCAR_STATE_JSON"] = str(self.ccar)
         self.head = self.git("rev-parse", "HEAD").stdout.strip()
 
