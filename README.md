@@ -14,6 +14,26 @@ under `~/.claude/`; the hook and the status line are wired in `settings.json`.
 | [`check_remoteviews.py`](skills/android-smoketest/scripts/check_remoteviews.py) | Static check for Android widget layouts the launcher will refuse to inflate: faults that compile, launch and crash-scan clean. |
 | Prompt-only skills | [`review`](skills/review/SKILL.md), [`write-tests`](skills/write-tests/SKILL.md), [`refine-spec`](skills/refine-spec/SKILL.md), [`orchestrator-bootstrap`](skills/orchestrator-bootstrap/SKILL.md), [`organize`](skills/organize/SKILL.md), [`test-drive`](skills/test-drive/SKILL.md), [`autopilot`](skills/autopilot/SKILL.md), [`create-skill`](skills/create-skill/SKILL.md). |
 
+## Screenshots
+
+Real runs on dummy inputs.
+
+<img src="docs/screenshots/plan-risk-gate.png" width="80%" alt="plan_risk_gate.py refusing and then allowing a plan">
+
+**Plan gate.** A plan without its risk block is refused with exit 2, which Claude Code hands
+back to the model as the reason. With the line added, `ExitPlanMode` goes through.
+
+<img src="docs/screenshots/statusline.png" width="80%" alt="Status line at low and high usage">
+
+**Status line.** Model and effort, context use, the 5-hour window with its reset time, and
+the 7-day window, each coloured by how close it is to its limit.
+
+<img src="docs/screenshots/check-remoteviews.png" width="80%" alt="check_remoteviews.py on a broken widget">
+
+**RemoteViews check**, run on a deliberately broken widget. The three layout classes the
+launcher would refuse to inflate fail the check, and a setter it cannot verify is flagged
+for a manual look.
+
 ## Tests
 
 Standard library only, Python 3.12:
