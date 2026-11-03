@@ -1,4 +1,5 @@
 __pycache__/
+.pytest_cache/
 *.pyc
 # self-improve writes its run state here; only the detector set is versioned
 skills/self-improve/state/*

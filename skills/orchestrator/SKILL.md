@@ -5,7 +5,7 @@ description: Show what is waiting on the user across every project and session, 
 
 # Orchestrator
 
-`orch` (`~/orchestrator`) derives the board from the projects. Change what it says through its
+`orch` (`~/claude-code-toolkit/orchestrator`) derives the board from the projects. Change what it says through its
 commands or the projects themselves, never by hand-keeping a list. Contract: `docs/design.md` there.
 The user is often on their phone over Remote Control: one screen, no preamble.
 
