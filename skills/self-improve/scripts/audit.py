@@ -18,7 +18,8 @@ import argparse, glob, importlib.util, json, os, re, sys
 from collections import Counter, defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-STATE = os.path.join(HERE, "..", "state")
+# State lives beside the installed skill, not this file: scripts/ may be a link into a public repo.
+STATE = os.path.expanduser(os.environ.get("SELF_IMPROVE_STATE", "~/.claude/skills/self-improve/state"))
 FRICTION = os.path.join(STATE, "friction.jsonl")
 PROJECTS = os.path.expanduser("~/.claude/projects")
 SKILLS_DIR = os.path.expanduser("~/.claude/skills")

@@ -25,9 +25,9 @@ import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-SKILL_DIR = Path(__file__).resolve().parent.parent
 CLAUDE_DIR = Path.home() / ".claude"
-STATE = SKILL_DIR / "state"
+# State lives beside the installed skill, not this file: scripts/ may be a link into a public repo.
+STATE = Path(os.environ.get("SELF_IMPROVE_STATE", "~/.claude/skills/self-improve/state")).expanduser()
 # Testing `verified` or `models --learn` against the live registry would stamp
 # dates and learn models that were never actually audited -- the exact rot this
 # tracks. Point this at a scratch copy to exercise the write paths.

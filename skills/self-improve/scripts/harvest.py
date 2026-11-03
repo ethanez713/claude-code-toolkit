@@ -23,8 +23,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-SKILL_DIR = Path(__file__).resolve().parent.parent
-STATE = SKILL_DIR / "state"
+# State lives beside the installed skill, not this file: scripts/ may be a link into a public repo.
+STATE = Path(os.environ.get("SELF_IMPROVE_STATE", "~/.claude/skills/self-improve/state")).expanduser()
 CURSOR = STATE / "cursor.json"
 PATTERNS = STATE / "patterns.json"
 FRICTION = STATE / "friction.jsonl"
