@@ -112,7 +112,7 @@ summary.
 ### 4. Apply, in two tiers
 - **Clear wins** (unambiguous cause, reversible destination): apply now, ≤3 per unattended
   run. Register each: `scripts/impact.py add --hypothesis ... --destination ... --signal ...`
-  then commit to the `~/.claude` repo with the run id, and store the sha as `--diff-ref`.
+  then commit to the repo that holds the resolved file with the run id, and store the sha as `--diff-ref`.
 - **Marginal** (real but lower value, or a judgement call): do not apply. Present as a
   numbered list so the user can reply "implement 1/2/4". Record in `state/BACKLOG.md`.
 - **Constitution** (see `references/constitution.md`): propose-only, and surface **at the top

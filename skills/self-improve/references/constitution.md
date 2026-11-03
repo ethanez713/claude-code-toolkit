@@ -59,8 +59,9 @@ restrictive."* Over-restriction is real friction. Surface it; let the user decid
 - Writes confined to: `~/.claude/CLAUDE.md` (non-protected regions), `~/.claude/settings.json`,
   `~/.claude/skills/**`, `~/.claude/projects/-home-<user>/memory/**`, project `CLAUDE.md`
   files, and this skill's own `scripts/` + `state/`.
-- Every applied change is committed to the `~/.claude` git repo tagged with its run id, so
-  `git revert` is always available.
+- Every applied change is committed, tagged with its run id, to the git repo that holds the
+  edited file once links are resolved (`git -C "$(dirname "$(realpath <file>)")"`): `~/.claude`,
+  or the public toolkit a skill links into. So `git revert` is always available.
 - Metrics stay declarative. An unattended run must never execute a self-authored shell
   command as part of measurement.
 - Transcript content never leaves the machine. No cloud model, no web request carrying
