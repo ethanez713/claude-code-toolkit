@@ -454,6 +454,9 @@ class FailSoftTest(TempCase):
         cfg = self.config()
         cfg.state_dir.mkdir()
         (cfg.state_dir / "board.json").write_text("{", encoding="utf-8")
+        (cfg.state_dir / "board.json").chmod(0o644)
+        cfg.status_path.write_text("old\n", encoding="utf-8")
+        cfg.status_path.chmod(0o644)
         result = scan(cfg)
         self.assertIn("Visible line", result.text)
         stored = json.loads((cfg.state_dir / "board.json").read_text(encoding="utf-8"))
@@ -461,6 +464,7 @@ class FailSoftTest(TempCase):
         self.assertEqual(stat.S_IMODE(cfg.state_dir.stat().st_mode), 0o700)
         self.assertEqual(stat.S_IMODE((cfg.state_dir / "board.json").stat().st_mode), 0o600)
         self.assertEqual(cfg.status_path.read_text(encoding="utf-8"), result.text)
+        self.assertEqual(stat.S_IMODE(cfg.status_path.stat().st_mode), 0o600)
 
     def test_given_non_repo_project_when_scanned_then_there_is_no_traceback(self):
         self.project("sample")

@@ -254,12 +254,14 @@ def runnable_steps(steps: list[Step]) -> list[Step]:
     return ready
 
 
-def atomic_write(path: Path, data: bytes) -> None:
+def atomic_write(path: Path, data: bytes, mode: int | None = None) -> None:
+    """Replace path atomically, keeping its current mode unless `mode` forces one."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
     tmp = Path(name)
     try:
-        mode = path.stat().st_mode & 0o777 if path.exists() else 0o600
+        if mode is None:
+            mode = path.stat().st_mode & 0o777 if path.exists() else 0o600
         os.chmod(tmp, mode)
         with os.fdopen(fd, "wb") as handle:
             handle.write(data)

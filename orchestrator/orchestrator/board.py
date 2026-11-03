@@ -116,7 +116,7 @@ def save_state(config: Config, state: dict) -> None:
     config.state_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(config.state_dir, 0o700)
     payload = json.dumps(state, indent=2, sort_keys=True).encode("utf-8") + b"\n"
-    atomic_write(_state_path(config), payload)
+    atomic_write(_state_path(config), payload, mode=0o600)
 
 
 def parse_day(value: str | None) -> date | None:
@@ -429,7 +429,7 @@ def scan(config: Config) -> ScanResult:
     state["scanned_at"] = config.now().astimezone().isoformat(timespec="seconds")
     save_state(config, state)
     status = text.encode("utf-8")
-    atomic_write(config.status_path, status)
+    atomic_write(config.status_path, status, mode=0o600)
     return ScanResult(text=text, items=visible, waiting=waiting, snoozed=hidden, backlog=backlog, orphans=orphans)
 
 
