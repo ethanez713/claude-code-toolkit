@@ -706,7 +706,7 @@ class CommitParseTest(unittest.TestCase):
         return commits[0]
 
     def test_given_cd_then_semicolon_when_parsed_then_repo_path_has_no_separator(self):
-        self.assertEqual(self.only_commit("cd ~/chinese; git commit -q -F msg")["cd_path"], "~/chinese")
+        self.assertEqual(self.only_commit("cd ~/myapp; git commit -q -F msg")["cd_path"], "~/myapp")
 
     def test_given_message_from_cat_heredoc_when_parsed_then_subject_is_the_heredoc_first_line(self):
         command = "git commit -m \"$(cat <<'EOF'\nHeredoc subject\n\nbody\nEOF\n)\""

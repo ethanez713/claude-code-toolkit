@@ -153,7 +153,7 @@ def added_lines(diff):
         if line.startswith("rename to ") or line.startswith("copy to "):
             path = path_token(line.split(" ", 2)[2])
             continue
-        if line.startswith("+++ "):
+        if line.startswith("+++ ") and new_line is None:
             path = new_path(line[4:])
             continue
         hunk = HUNK.match(line)

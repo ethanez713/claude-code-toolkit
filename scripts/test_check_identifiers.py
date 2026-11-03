@@ -80,6 +80,14 @@ class CheckIdentifiersTest(unittest.TestCase):
         self.assertEqual(out, "")
         self.assertEqual(err, "notes.txt:2: matches alice\n" + CLOSING)
 
+    def test_given_an_added_line_starting_with_plus_plus_when_checked_then_it_is_still_scanned(self):
+        self.write_denylist("alice\n")
+        (self.repo / "notes.txt").write_text("okay\n++ alice\n", encoding="utf-8")
+        self.git("add", "notes.txt")
+        code, out, err = self.check()
+        self.assertEqual(code, 1)
+        self.assertEqual(err, "notes.txt:2: matches alice\n" + CLOSING)
+
     def test_given_a_hit_only_in_an_unchanged_line_when_checked_then_it_is_allowed(self):
         self.write_denylist("alice\n")
         path = self.repo / "notes.txt"
