@@ -26,7 +26,8 @@ from pathlib import Path
 # State lives beside the installed skill, not this file: scripts/ may be a link into a public repo.
 STATE = Path(os.environ.get("SELF_IMPROVE_STATE", "~/.claude/skills/self-improve/state")).expanduser()
 CURSOR = STATE / "cursor.json"
-PATTERNS = STATE / "patterns.json"
+# The detector set is versioned with the code; the rest of state/ is local run data.
+PATTERNS = Path(__file__).resolve().parent.parent / "state" / "patterns.json"
 FRICTION = STATE / "friction.jsonl"
 CANDIDATES = STATE / "candidates.json"
 RATES = STATE / "signal_rates.json"
