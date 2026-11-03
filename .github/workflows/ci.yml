@@ -29,3 +29,6 @@ jobs:
       - name: orchestrator
         working-directory: orchestrator
         run: python -m unittest discover -s tests
+      - name: check-identifiers
+        working-directory: scripts
+        run: python -m unittest test_check_identifiers -v
