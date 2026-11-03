@@ -1,0 +1,13 @@
+root = "~"
+exclude = ["_archive", "downloads", "tools"]
+no_git_check = ["dotfiles", ".claude"]
+runnable_days = 14
+sweep_days = 30
+count_ttl_seconds = 300
+reset_context_pct = 50
+wrapper = "~/claude-autoresume/bin/cc-run"
+tmux_session = "cc"
+default_socket = "/tmp/tmux-1000/ccar"
+
+[aliases]
+dot-claude = "~/.claude"

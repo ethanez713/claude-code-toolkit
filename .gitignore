@@ -4,3 +4,7 @@ __pycache__/
 skills/self-improve/state/*
 !skills/self-improve/state/patterns.json
 !skills/self-improve/state/.gitkeep
+# orch writes the board here, and a local orch.toml overrides orch.example.toml
+orchestrator/STATUS.md
+orchestrator/state/
+orchestrator/orch.toml
