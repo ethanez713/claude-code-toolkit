@@ -87,6 +87,7 @@ class ServerTest(unittest.TestCase):
         os.environ.pop("FAKE_GROK_SLEEP", None)
         os.environ["GROK_HOME"] = str(self.home)
         os.environ["GROK_MCP_GROK_STATUSLINE"] = str(SKILL / "grok_statusline.py")
+        os.environ["GROK_MCP_PRIVATE_PATHS"] = str(self.root / "private-paths")
         os.environ["GROK_MCP_BURN_WINDOW"] = str(SKILL.parent / "self-improve" / "scripts" / "burn_window.py")
         os.environ["CCAR_STATE_JSON"] = str(self.ccar)
         self.head = self.git("rev-parse", "HEAD").stdout.strip()
@@ -209,6 +210,20 @@ class ServerTest(unittest.TestCase):
         self.assertIn("--trust", argv)
         self.assertEqual(self.prompts()[0]["GROK_CLAUDE_MCPS_ENABLED"], "false")
 
+    def test_given_claude_socket_in_env_when_job_runs_then_meta_names_it(self):
+        os.environ["CLAUDE_CODE_MESSAGING_SOCKET"] = "/run/user/1000/cc-socks/42.sock"
+        text, err = self.call_run()
+        self.assertFalse(err, text)
+        meta = json.loads((self.state / "jobs" / self.jid(text) / "meta.json").read_text(encoding="utf-8"))
+        self.assertEqual(meta["claude_socket"], "/run/user/1000/cc-socks/42.sock")
+
+    def test_given_no_claude_socket_in_env_when_job_runs_then_meta_socket_is_null(self):
+        os.environ.pop("CLAUDE_CODE_MESSAGING_SOCKET", None)
+        text, err = self.call_run()
+        self.assertFalse(err, text)
+        meta = json.loads((self.state / "jobs" / self.jid(text) / "meta.json").read_text(encoding="utf-8"))
+        self.assertIsNone(meta["claude_socket"])
+
     def test_error_json(self):
         os.environ["FAKE_GROK_MODE"] = "error"
         text, err = self.call_run()
@@ -261,17 +276,17 @@ class ServerTest(unittest.TestCase):
             with gate:
                 results.append(out)
 
-        threads = [threading.Thread(target=go, args=(i,)) for i in range(4)]
+        threads = [threading.Thread(target=go, args=(i,)) for i in range(12)]
         for thread in threads:
             thread.start()
         for thread in threads:
             thread.join(40)
-        self.assertEqual(len(results), 4)
+        self.assertEqual(len(results), 12)
         refused = [item for item in results if item[1]]
-        self.assertEqual(len(refused), 1, results)
-        self.assertIn("already 3", refused[0][0])
-        self.assertEqual(len(self.prompts()), 3)
-        self.assertEqual(len(list((self.state / "jobs").iterdir())), 3)
+        self.assertEqual(len(refused), 2, results)
+        self.assertIn("already 10", refused[0][0])
+        self.assertEqual(len(self.prompts()), 10)
+        self.assertEqual(len(list((self.state / "jobs").iterdir())), 10)
 
     def test_given_credit_mostly_used_when_second_job_starts_then_refused(self):
         self.write_billing(self.home, 90)
@@ -295,7 +310,7 @@ class ServerTest(unittest.TestCase):
         self.assertIn("already 1", refused[0][0])
 
     def test_concurrency_cap_tightens_as_credit_is_used(self):
-        caps = {0: 3, 69.9: 3, 70: 2, 84.9: 2, 85: 1, 100: 1}
+        caps = {0: 10, 69.9: 10, 70: 3, 84.9: 3, 85: 1, 100: 1}
         for pct, allowed in caps.items():
             self.assertEqual(quota.max_concurrent({"pct": pct}), allowed, pct)
         self.assertEqual(quota.max_concurrent("unknown"), 1)
@@ -310,6 +325,17 @@ class ServerTest(unittest.TestCase):
             text, err = jobs.run({"task": "nope", "cwd": str(repo), "kind": "implement"})
         finally:
             rules.PRIVATE_PATHS = old
+        self.assertTrue(err, text)
+        self.assertIn("private", text)
+        self.assertEqual(self.prompts(), [])
+
+    def test_private_path_from_local_list(self):
+        priv = self.root / "listed"
+        repo = priv / "repo"
+        self.make_repo(repo)
+        (self.root / "private-paths").write_text(f"# local only\n\n{priv}\n")
+        self.assertIn(str(priv), rules.private_paths())
+        text, err = jobs.run({"task": "nope", "cwd": str(repo), "kind": "implement"})
         self.assertTrue(err, text)
         self.assertIn("private", text)
         self.assertEqual(self.prompts(), [])

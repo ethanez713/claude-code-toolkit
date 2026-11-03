@@ -85,7 +85,9 @@ bug caught after that becomes load-bearing.
 - Under the `autopilot` skill, its gate and reordering rules replace the rule above and
   the independence rule below; every other rule here still holds.
 - On reaching one: set the index status to `GATE <id>`, commit the work so far, and tell
-  the user what to test, on which device, and what a pass looks like.
+  the user what to test, on which device, and what a pass looks like. A `[?]` worklog line
+  with `gate: <id>` carries that wording to the user's board, and overrides the kind when the
+  gate isn't a quick check. An `[a]` line with `gate: <id>` is the user's report on it.
 - Work with no dependency on the gate may continue **only** if the index already declares
   it independent. When in doubt, stop.
 

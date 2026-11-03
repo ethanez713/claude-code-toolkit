@@ -1,6 +1,6 @@
 # Evidence base
 
-**last_verified: 2026-07-25** · re-verify when older than **90 days**, or before any run
+**last_verified: 2026-10-30** · re-verify when older than **90 days**, or before any run
 that would warn about context-file size.
 
 Every consolidation warning and routing preference below must cite a line from this file.
@@ -61,15 +61,23 @@ two tasks, not a modify-vs-write generalisation.
 **Therefore:** prefer rules attached to a task type (a skill that loads for that work) over
 another line of global prose.
 
-## Context files pay for themselves on cost
+## Context files: the cost evidence conflicts
 
 Lulla et al. 2026, *On the Impact of AGENTS.md Files on the Efficiency of AI Coding Agents*
-(arXiv:2601.20404, JAWs @ ICSE): mean output tokens **5,744.81 → 4,591.46 (−20.08%)** with
-an AGENTS.md present. The mean falls more than the median, so the saving comes from
-suppressing a few very high-cost runs rather than uniformly.
+(arXiv:2601.20404, JAWs @ ICSE), 10 repositories and 124 pull requests: with an AGENTS.md,
+median runtime **−28.64%**, median output tokens **−16.58%**, task completion comparable. Mean
+output tokens **5,744.81 → 4,591.46 (−20.08%)**; the mean falls more than the median, so part
+of the saving comes from suppressing a few very high-cost runs.
 
-**Therefore:** context files are cost-positive. Do not trim for trimming's sake — trim only
-what is dead, duplicated, or superseded by mechanical enforcement.
+Gloaguen et al. 2026, *Evaluating AGENTS.md* (arXiv:2602.11988), SWE-bench tasks with
+LLM-generated files plus issues from repositories with developer-written files: context files
+generally do **not** raise task success and raise inference cost by **over 20%**, across agents
+and models. Agents follow the files; repository overviews do not help. The authors find them
+useful for specifying non-standard practices.
+
+**Therefore:** do not claim context files pay for themselves, and do not trim for trimming's
+sake. Keep what states a non-standard practice or a decision the code cannot express; trim
+what is dead, duplicated, superseded by mechanical enforcement, or a repository overview.
 
 ## Prefer mechanical enforcement over prose
 

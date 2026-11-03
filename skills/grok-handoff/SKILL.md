@@ -53,8 +53,8 @@ is settled (what to build and the load-bearing decisions are known), hand the st
 A multi-step plan hands off step by step: each settled step is its own job (§4 pipelines
 them), while the planning and the review between steps stay here.
 
-Kinds handed off: `implement`, `fix`, `refactor`, `tests`, `build`, `other`.
-Kinds kept here: none.
+Kinds handed off: `implement`, `fix`, `refactor`, `tests`, `build`.
+Kinds kept here: `other`.
 A Measurement verdict moves a kind between these two lines.
 
 Use `mode: consult`, kind `review`, for an independent review of a risky diff before
@@ -80,8 +80,8 @@ Done when: <command and what it must show>
 
 Aim for 300–1,500 chars. Keep implementation guidance high-level (which layer owns the
 change, which pattern to follow); don't list steps and don't paste code. `Start at` is the
-exception to brevity: Grok's cost is its model calls, and without it more than half of a
-job's calls go to finding files you read while designing. List them; don't describe them. Every line should be something a capable engineer reading the repo cold
+exception to brevity: you already read those files while designing, so list them; don't
+describe them. Every line should be something a capable engineer reading the repo cold
 would get wrong or have to ask about. No private data. `kind` is the measurement key, so
 choose it honestly.
 - Write repo-relative paths. An absolute path into your checkout points Grok at your live

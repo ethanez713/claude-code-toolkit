@@ -85,8 +85,22 @@ PRIVATE_PATHS = (
 )
 
 
+LOCAL_PRIVATE_PATHS = "~/.claude/toolkit-local/grok-private-paths"
+
+
+def _local_private_paths():
+    """Machine-specific private paths, one per line, kept outside this public repo."""
+    path = os.path.expanduser(os.environ.get("GROK_MCP_PRIVATE_PATHS", LOCAL_PRIVATE_PATHS))
+    try:
+        with open(path, encoding="utf-8") as handle:
+            lines = [line.strip() for line in handle]
+    except OSError:
+        return []
+    return [line for line in lines if line and not line.startswith("#")]
+
+
 def private_paths():
-    return [os.path.expanduser(p) for p in PRIVATE_PATHS]
+    return [os.path.expanduser(p) for p in (*PRIVATE_PATHS, *_local_private_paths())]
 
 
 if __name__ == "__main__":

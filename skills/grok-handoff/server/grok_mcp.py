@@ -31,7 +31,7 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "task": {"type": "string"},
-                "cwd": {"type": "string"},
+                "cwd": {"type": "string", "description": "Absolute path; a relative one is refused."},
                 "kind": {"type": "string", "enum": _KINDS},
                 "mode": {"type": "string", "enum": ["edit", "consult"], "default": "edit"},
                 "job": {"type": "string"},

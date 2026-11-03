@@ -93,8 +93,8 @@ def _running_count():
 
 def _under_private(path):
     resolved = Path(path).resolve()
-    for raw in rules.PRIVATE_PATHS:
-        priv = Path(os.path.expanduser(raw)).resolve()
+    for raw in rules.private_paths():
+        priv = Path(raw).resolve()
         if resolved == priv:
             return True
         try:
@@ -333,6 +333,7 @@ def _prepare(arguments, progress_token):
         "effort": effort,
         "model": model,
         "cwd": str(cwd),
+        "claude_socket": os.environ.get("CLAUDE_CODE_MESSAGING_SOCKET"),
         "repo_root": repo_root,
         "workdir": str(workdir),
         "branch": branch,

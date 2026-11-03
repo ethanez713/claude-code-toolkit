@@ -81,7 +81,7 @@ Skip this section under `notes-only`.
 
 1. Fix every finding whose right answer is clear, highest severity first, starting with
    whatever would be called out at first glance. Visual fixes follow the project's design
-   system (for example `~/design_system`).
+   system (default: the `~/*_design_system` directory).
 2. Drive the changed screens again and critique them as harshly as the first round. Repeat
    while each cycle is an improvement; stop when the result is ready for the user's eye.
 3. Delete each journal entry as its fix is committed. Move the rest into the project's plan.

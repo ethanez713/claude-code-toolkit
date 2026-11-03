@@ -18,7 +18,7 @@ CONSERVE_PCT = 85
 CONSERVE_MIN_H = 36
 # Credit running out mid-flight strands every running job half-done, so the cap on
 # concurrent jobs tightens as the weekly credit is used: (used % below, jobs allowed).
-CONCURRENCY_TIERS = ((70, 3), (85, 2))
+CONCURRENCY_TIERS = ((70, 10), (85, 3))
 MIN_CONCURRENT = 1
 
 BILLING_MSG = "billing: fetched credits config"

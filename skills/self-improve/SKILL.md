@@ -100,7 +100,7 @@ rule that must be remembered:
 2. a wrapper script that makes the wrong path impossible
 3. an existing skill in `~/.claude/skills/`
 4. a new skill (recurring multi-step workflow only)
-5. `~/.claude/projects/<project>/memory/` for a durable fact
+5. the home-directory project's memory, `~/.claude/projects/-home-<user>/memory/`, for a durable fact
 6. project `CLAUDE.md` for project-specific convention
 7. global `CLAUDE.md` — last resort, for genuinely cross-project behaviour
 8. nothing: log to `state/BACKLOG.md` with the reason

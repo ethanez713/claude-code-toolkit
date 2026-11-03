@@ -97,7 +97,11 @@ def compile_patterns() -> list[dict]:
 
 
 INJECT_RE = re.compile(
-    r"\A(?:Base directory for this skill:|#{1,3} [^\n]*\bskill\b)", re.IGNORECASE)
+    r"\A(?:Base directory for this skill:|#{1,3} [^\n]*\bskill\b"
+    r"|This session is being continued from a previous conversation)", re.IGNORECASE)
+# Claude Code logs each API request's payload as its own record, so matching these
+# counts every earlier message a second time.
+REQUEST_REPLAY_RE = re.compile(r'\A\{"type":\s*"api-request')
 
 
 def user_text(rec: dict) -> str | None:
@@ -177,6 +181,20 @@ def tool_results(rec: dict) -> str:
     return "\n".join(out)
 
 
+def block_ids(line: str, block_type: str, key: str) -> list[str]:
+    """Tool-call ids carried by `block_type` blocks in a raw transcript line."""
+    if f'"{block_type}"' not in line:
+        return []
+    try:
+        content = (json.loads(line).get("message") or {}).get("content")
+    except (json.JSONDecodeError, AttributeError):
+        return []
+    if not isinstance(content, list):
+        return []
+    return [b[key] for b in content
+            if isinstance(b, dict) and b.get("type") == block_type and key in b]
+
+
 def blank_totals() -> dict:
     return {
         "prompts": 0,
@@ -218,6 +236,7 @@ def scan_file(path: Path, offset: int, totals: dict, patterns: list[dict]) -> tu
     """Scan from `offset`; mutate `totals`; return (new_offset, hits)."""
     hits: list[dict] = []
     seen_tools: dict[str, int] = defaultdict(int)
+    self_calls: set[str] = set()
     line_no = lines_before(path, offset)
     with open(path, "rb") as fh:
         fh.seek(offset)
@@ -235,7 +254,15 @@ def scan_file(path: Path, offset: int, totals: dict, patterns: list[dict]) -> tu
             # Hits are buffered, not committed: a detector carrying `since` needs
             # this record's timestamp, which is only known after the parse below.
             pending: list[dict] = []
-            for p in ([] if SELF_RE.search(line) else patterns):
+            own_footprint = bool(SELF_RE.search(line))
+            if own_footprint:
+                self_calls.update(block_ids(line, "tool_use", "id"))
+            # A result rarely names the file its command read, so printing this skill's
+            # detectors would otherwise score as every error string they contain.
+            elif self_calls.intersection(block_ids(line, "tool_result", "tool_use_id")):
+                own_footprint = True
+            skip = own_footprint or REQUEST_REPLAY_RE.match(line)
+            for p in ([] if skip else patterns):
                 if p["_re"].search(line):
                     if p.get("scope") == "user_prompt":
                         try:

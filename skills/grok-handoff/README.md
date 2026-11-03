@@ -4,6 +4,8 @@ MCP server that hands implementation and reviews to Grok, whose weekly credit is
 
 Credit lockout: a 100% reading or a credit error writes `grok_out` (state dir) with the period's reset time; `quota.grok_read` returns 100% without a billing read until then.
 
+Live view of running jobs: the `grok-pane` mod at `../grok-pane`.
+
 Layout: `server/` (protocol, jobs, quota, events, rules, doctor, sandbox profile), `scripts/report.py` (the measurement report; `scripts/prices.json` feeds it), `tests/`.
 
 Tests: `python3 -m unittest discover -s tests -t .`

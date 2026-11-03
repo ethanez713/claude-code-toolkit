@@ -15,7 +15,9 @@ settle. Every extra "should I continue?" is a failure of this skill.
 2. **Run every ready step**: do it, verify it, commit it, record it in the worklog. Then the
    next one.
 3. **A blocker holds one step and whatever `needs:` it — never the run.** Write the hold in
-   the worklog and take the next ready step, in another phase or workstream if necessary.
+   the worklog as a `[?]` line (format in the global `CLAUDE.md`) and take the next ready step,
+   in another phase or workstream if necessary. Each item under **Needs you** in the final report
+   has one.
 4. **Before stopping, attack each hold.** Try to clear it yourself: research it, read the
    code or logs, measure it, run the test, drive the device. Only what survives is the user's.
 5. **Stop only when every remaining step is held on the user.** Not at a phase boundary, a

@@ -95,5 +95,37 @@ with tempfile.TemporaryDirectory() as td:
     check("incremental hit count", len(hits), 1)
     check("scan_file line is absolute", hits[0]["line"], 60)
 
+    def scan_signals(name, records):
+        path = Path(td) / name
+        path.write_text("".join(json.dumps(r) + "\n" for r in records))
+        return [x["signal"] for x in h.scan_file(path, 0, h.blank_totals(), list(detectors.values()))[1]]
+
+    interrupt = {"type": "user", "message": {"role": "user", "content": "[Request interrupted by user]"}}
+    check("real message counts", scan_signals("real.jsonl", [interrupt]), ["user-interrupt"])
+    check("request replay of the same message does not count",
+          scan_signals("replay.jsonl", [{**interrupt, "type": "api-request-blob"}]), [])
+
+    def tool_use(tool_id, command):
+        return {"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": tool_id, "name": "Bash", "input": {"command": command}}]}}
+
+    def tool_result(tool_id, text):
+        return {"type": "user", "message": {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": tool_id, "content": text}]}}
+
+    adb_error = "error: more than one device/emulator"
+    check("adb error from an ordinary command counts",
+          scan_signals("adb.jsonl", [tool_use("a", "adb devices"), tool_result("a", adb_error)]),
+          ["adb-multi-device"])
+    check("printing this skill's detectors does not count",
+          scan_signals("self.jsonl", [tool_use("b", "cat state/patterns.json"), tool_result("b", adb_error)]), [])
+    check("a doc quoting the adb error without its prefix does not count",
+          scan_signals("doc.jsonl", [tool_use("c", "cat SKILL.md"),
+                                     tool_result("c", 'fails with "more than one device/emulator"')]), [])
+
+summary = "This session is being continued from a previous conversation. Summary: no, that's wrong"
+check("compact summary is not a user prompt",
+      h.user_text({"type": "user", "message": {"role": "user", "content": summary}}), None)
+
 print("\n".join(failures) if failures else "all harvest tests passed")
 sys.exit(1 if failures else 0)

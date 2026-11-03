@@ -1,6 +1,6 @@
 ---
 name: organize
-description: Keep a project's file structure clean and maintainable — clean root, feature isolation, config separated from logic, self-documenting files, and a safe way to restructure. Use when asked to organize, clean up, restructure, or audit a project's layout, or when a session has left a mess of files.
+description: Keep a project's file structure clean and maintainable — clean root, feature isolation, config separated from logic, self-documenting files, and a safe way to restructure. Use when asked to organize, tidy, clean up, restructure, or audit a project's layout or files; to delete leftover notes, planning docs, dead test files, build or test artefacts, or large files that can be regenerated; when a project is finished or being archived; or when a session has left a mess of files.
 ---
 
 # Project organization
@@ -46,8 +46,8 @@ standing preferences; on judgment calls, prefer the simplest layout that stays t
 
 - **gitignore secrets the moment they appear**, and rename any file whose name itself leaks
   something sensitive.
-- **Move, never delete, files you didn't create** when tidying. Organizing is local-only —
-  no network calls, downloads, or uploads.
+- **Move, never delete, files you didn't create** when tidying on your own initiative. Organizing
+  is local-only — no network calls, downloads, or uploads.
 
 ## Restructuring safely
 
@@ -59,6 +59,20 @@ When moving things around:
 4. **Confirm tests still pass** afterward.
 5. **Re-check `.gitignore` still covers any secret/generated files at their new paths** — a
    move can silently un-ignore a secret and stage it for commit.
+
+## Clearing out
+
+When asked to remove leftovers, or when a project is finished:
+
+1. **List what goes before deleting it**, sorted into tracked files, gitignored output, and untracked
+   files. Look at each untracked file: nothing else holds a copy.
+2. **Delete what the request names and what regenerates**: build and test output, downloaded files
+   that can be fetched again, shipped plans and notes, dead test files. Keep anything that is the only
+   record of a decision, or move that record into the doc it belongs in first.
+3. **Commit the removal of tracked files on its own**, then report what went and how much space it freed.
+
+Archiving a finished project follows `~/_archive/README.md`: strip gitignored build output, move the
+repo under `~/_archive/`, and update that inventory. A repo with no remote is archived, never deleted.
 
 ## Auditing an existing project
 

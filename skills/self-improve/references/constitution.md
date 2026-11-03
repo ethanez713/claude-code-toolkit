@@ -57,7 +57,7 @@ restrictive."* Over-restriction is real friction. Surface it; let the user decid
 
 - ≤ **3** applied changes.
 - Writes confined to: `~/.claude/CLAUDE.md` (non-protected regions), `~/.claude/settings.json`,
-  `~/.claude/skills/**`, `~/.claude/projects/<project>/memory/**`, project `CLAUDE.md`
+  `~/.claude/skills/**`, `~/.claude/projects/-home-<user>/memory/**`, project `CLAUDE.md`
   files, and this skill's own `scripts/` + `state/`.
 - Every applied change is committed to the `~/.claude` git repo tagged with its run id, so
   `git revert` is always available.
