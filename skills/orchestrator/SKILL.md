@@ -60,3 +60,11 @@ If the user says a device is available, add that the session may drive the gates
 | refused | Report why. Never clear the input box: it may hold the user's typing |
 
 Report what was sent where. The work happens in the project's session, not here.
+
+## Drive an item yourself
+
+Only when the user asks this session to clear items itself. Prefix every `aconnect` call with
+`ACONNECT_PROJECT=orchestrator`, because a phone reserved for named projects admits this session only
+under that name. Filter a phone browser's DevTools `/json` listing to the app's own origin before printing it,
+since the unfiltered list exposes every tab the user has open. Leave a gate as `[?]` with your evidence;
+it passes only on the user's word.
