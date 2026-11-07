@@ -497,6 +497,17 @@ class ServerTest(unittest.TestCase):
         offset_before_trim = log.stat().st_size * 10
         self.assertEqual(jobs._foreign_billing(offset_before_trim, set(), started), 1)
 
+    def test_given_relative_cwd_when_resolved_then_anchored_at_server_cwd(self):
+        (self.repo / "sub").mkdir()
+        prev = os.getcwd()
+        os.chdir(self.repo)
+        try:
+            self.assertEqual(jobs._resolve_cwd("."), (self.repo.resolve(), None))
+            self.assertEqual(jobs._resolve_cwd("sub"), ((self.repo / "sub").resolve(), None))
+            self.assertEqual(jobs._resolve_cwd("missing")[1], "cwd does not exist")
+        finally:
+            os.chdir(prev)
+
     def test_given_cwd_not_in_head_when_run_then_refused_with_no_worktree_branch_or_job_dir(self):
         (self.repo / "untracked_dir").mkdir()
         out, err = self.call_run(cwd=self.repo / "untracked_dir")

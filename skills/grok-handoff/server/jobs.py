@@ -109,9 +109,9 @@ def _under_private(path):
 def _resolve_cwd(cwd):
     if not isinstance(cwd, str) or not cwd:
         return None, "cwd is required"
-    path = Path(os.path.expanduser(cwd))
-    if not path.is_absolute():
-        return None, "cwd must be absolute"
+    # The stdio server is spawned in the Claude session's launch directory, which is what a
+    # relative cwd like "." means to the caller; refusing it cost a retry per handoff.
+    path = (Path.cwd() / os.path.expanduser(cwd)).resolve()
     if not path.is_dir():
         return None, "cwd does not exist"
     return path, None
