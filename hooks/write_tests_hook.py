@@ -18,7 +18,7 @@ import time
 WRITE_TOOLS = {"Write", "Edit"}
 TEST_DIRS = {"test", "tests", "androidTest"}
 MARKERS = "/tmp/claude-write-tests-gate"
-LOG = os.path.expanduser("~/.claude/skills/self-improve/state/write-tests-gate.jsonl")
+LOG = os.path.expanduser("~/.claude/logs/write_tests_gate.jsonl")
 INVOKED = re.compile(r'"skill"\s*:\s*"write-tests"')
 GATE_REASON = (
     "This session's first test-file write is gated on the write-tests skill. Invoke it "

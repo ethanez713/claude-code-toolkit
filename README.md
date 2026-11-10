@@ -8,6 +8,9 @@ under `~/.claude/`; the hook and the status line are wired in `settings.json`.
 | Piece | What it does |
 |---|---|
 | [`hooks/plan_risk_gate.py`](hooks/plan_risk_gate.py) | `PreToolUse` gate on `ExitPlanMode`. A plan must open with a risk block (`Risk: routine.` or a `## ⚠ Critical decisions` list restating each high-risk decision the user already answered), so a plan approved unread is still safe. Fails open: a gate that cannot read the plan never traps the session. |
+| [`hooks/write_tests_hook.py`](hooks/write_tests_hook.py) | `PreToolUse` gate on `Write\|Edit`: the first write to a test file in a session is refused with an instruction to load the `write-tests` skill and retry, so the skill fires by behaviour rather than by name. Every decision is logged for measurement. |
+| [`hooks/pkill_guard_hook.py`](hooks/pkill_guard_hook.py) | `PreToolUse` gate on `Bash`: refuses a `pkill -f`/`pgrep -f` pattern that also matches the shell running it, which kills the tool call itself (exit 144). |
+| [`hooks/worklog_name_gate.py`](hooks/worklog_name_gate.py) | `PreToolUse` gate on `Write\|Edit`: a worklog is named after the project directory, never the `-home-…` transcript slug, so one project's state never splits across two files. |
 | [`statusline.py`](statusline.py) | Status line: model, effort, context use, and the 5-hour and 7-day rate-limit windows. |
 | [`skills/grok-handoff/`](skills/grok-handoff/) | Hands settled implementation steps to Grok through a local MCP server. Jobs run in their own git worktrees, a quota-aware route decides when a handoff pays, a sandbox hides private paths, and [`scripts/report.py`](skills/grok-handoff/scripts/report.py) measures whether handoffs actually save Claude quota. |
 | [`orchestrator/`](orchestrator/) + [`skills/orchestrator/`](skills/orchestrator/SKILL.md) | One board of what is waiting on me across every project and session, read from the worklogs, plan indexes and live sessions rather than a hand-kept list. Answers are logged back into each project's worklog, and `orch deliver` types the pick-up into that project's live tmux session only when it is idle and its input box is empty. Contract: [`docs/design.md`](orchestrator/docs/design.md). |
@@ -42,7 +45,8 @@ Standard library only, Python 3.12:
 
 ```sh
 (cd skills/grok-handoff && python3 -m unittest discover -s tests -t .)   # against a fake Grok
-(cd skills/self-improve/scripts && python3 test_harvest.py && python3 test_write_tests_hook.py)
+(cd hooks && python3 -m unittest test_pkill_guard_hook test_worklog_name_gate && python3 test_write_tests_hook.py)
+(cd skills/self-improve/scripts && python3 test_harvest.py)
 (cd orchestrator && python3 -m unittest discover -s tests)              # synthetic worklogs, no tmux
 (cd scripts && python3 -m unittest test_check_identifiers -v)           # temp repo, synthetic denylist
 ```

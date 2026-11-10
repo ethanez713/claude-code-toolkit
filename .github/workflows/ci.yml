@@ -23,9 +23,12 @@ jobs:
       - name: grok-handoff (fake Grok)
         working-directory: skills/grok-handoff
         run: python -m unittest discover -s tests -t .
+      - name: hooks
+        working-directory: hooks
+        run: python -m unittest test_pkill_guard_hook test_worklog_name_gate && python test_write_tests_hook.py
       - name: self-improve
         working-directory: skills/self-improve/scripts
-        run: python test_harvest.py && python test_write_tests_hook.py
+        run: python test_harvest.py
       - name: orchestrator
         working-directory: orchestrator
         run: python -m unittest discover -s tests

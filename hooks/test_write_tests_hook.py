@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Path matching, gate behaviour and stdin contract for write_tests_hook.py.
 
-    python3 scripts/test_write_tests_hook.py
+    python3 hooks/test_write_tests_hook.py
 """
 from __future__ import annotations
 

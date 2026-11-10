@@ -1,9 +1,8 @@
-import pytest
+import unittest
 
 from pkill_guard_hook import self_matching
 
-
-@pytest.mark.parametrize("command", [
+SELF_MATCHING = [
     "pkill -f gmake; free -m",
     "kill 82656 2>/dev/null; pkill -f gmake",
     "pkill -9 -f 'qemu-system.*-avd smoke'",
@@ -11,12 +10,9 @@ from pkill_guard_hook import self_matching
     "pgrep -f 'llama.py --build' | xargs -r kill; cd /tmp",
     "kill $(pgrep -f bin/myapp)",
     "adb -s X shell 'touch stop; pkill -f contend.sh; sleep 1'",
-])
-def test_given_a_kill_matching_its_own_shell_when_checked_then_refused(command):
-    assert self_matching(command)
+]
 
-
-@pytest.mark.parametrize("command", [
+HARMLESS = [
     "pkill -f '[g]make'",
     "pgrep -f '[l]lama.py' | xargs -r kill",
     "pkill cc1plus",
@@ -27,6 +23,20 @@ def test_given_a_kill_matching_its_own_shell_when_checked_then_refused(command):
     "git commit -m \"Refuse self-kills\n\npkill -f and pgrep -f match their own shell\"",
     "commit \"Refuse self-kills\n\npkill -f and pgrep -f match their own shell\" settings.json",
     "impact.py add --hypothesis \"pkill -f matches its own shell\"",
-])
-def test_given_a_harmless_command_when_checked_then_allowed(command):
-    assert not self_matching(command)
+]
+
+
+class PkillGuard(unittest.TestCase):
+    def test_given_a_kill_matching_its_own_shell_when_checked_then_refused(self):
+        for command in SELF_MATCHING:
+            with self.subTest(command=command):
+                self.assertTrue(self_matching(command))
+
+    def test_given_a_harmless_command_when_checked_then_allowed(self):
+        for command in HARMLESS:
+            with self.subTest(command=command):
+                self.assertFalse(self_matching(command))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -24,12 +24,12 @@ FRICTION = os.path.join(STATE, "friction.jsonl")
 PROJECTS = os.path.expanduser("~/.claude/projects")
 SKILLS_DIR = os.path.expanduser("~/.claude/skills")
 SELF_RE = re.compile(r"skills/self-improve|self-improve/state|patterns\.json")
-GATE_LOG = os.path.join(STATE, "write-tests-gate.jsonl")
+GATE_LOG = os.path.expanduser("~/.claude/logs/write_tests_gate.jsonl")
 
 
 def _is_test_path():
     """The write-tests gate's own path matcher, so the metric and the hook cannot drift."""
-    path = os.path.join(HERE, "write_tests_hook.py")
+    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "hooks", "write_tests_hook.py")
     spec = importlib.util.spec_from_file_location("write_tests_hook", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
