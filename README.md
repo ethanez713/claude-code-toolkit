@@ -46,7 +46,7 @@ Standard library only, Python 3.12:
 ```sh
 (cd skills/grok-handoff && python3 -m unittest discover -s tests -t .)   # against a fake Grok
 (cd hooks && python3 -m unittest test_pkill_guard_hook test_worklog_name_gate && python3 test_write_tests_hook.py)
-(cd skills/self-improve/scripts && python3 test_harvest.py)
+(cd skills/self-improve/scripts && python3 test_harvest.py && python3 -m unittest test_audit)
 (cd orchestrator && python3 -m unittest discover -s tests)              # synthetic worklogs, no tmux
 (cd scripts && python3 -m unittest test_check_identifiers -v)           # temp repo, synthetic denylist
 ```

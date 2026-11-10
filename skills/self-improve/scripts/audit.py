@@ -1,30 +1,44 @@
 #!/usr/bin/env python3
-"""Cross-session audits the per-scan friction ranking cannot see.
+"""Cross-session error digest, fix measurement, and skill-usage counts.
 
-harvest.py ranks only a single scan's new hits, clustered per (signal, project),
-so a pattern spread thin across many sessions never scores high enough to be read,
-and steady-state damping buries high-volume flat signals. These passes look at the
-whole corpus instead:
-
-  audit.py digest [--since ISO] [--top N]   detector-independent error-content buckets
-                                            + files re-read many times in one session
-  audit.py efficiency [--since ISO]         per-session token/tool ratios, outliers
-  audit.py skills                           skill invocation counts, last use, dead/dormant
-
-Read-only. Prints; writes nothing.
+Reads transcripts under SELF_IMPROVE_PROJECTS (default ~/.claude/projects) and
+fix state under SELF_IMPROVE_STATE (default ~/.claude/skills/self-improve/state).
+`fixes add` and `fixes dismiss` are the only writes; `fixes` never updates a
+stored status.
 """
 from __future__ import annotations
-import argparse, glob, importlib.util, json, os, re, sys
-from collections import Counter, defaultdict
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-# State lives beside the installed skill, not this file: scripts/ may be a link into a public repo.
-STATE = os.path.expanduser(os.environ.get("SELF_IMPROVE_STATE", "~/.claude/skills/self-improve/state"))
-FRICTION = os.path.join(STATE, "friction.jsonl")
-PROJECTS = os.path.expanduser("~/.claude/projects")
+import argparse
+import glob
+import importlib.util
+import json
+import os
+import re
+import sys
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+
 SKILLS_DIR = os.path.expanduser("~/.claude/skills")
 SELF_RE = re.compile(r"skills/self-improve|self-improve/state|patterns\.json")
 GATE_LOG = os.path.expanduser("~/.claude/logs/write_tests_gate.jsonl")
+COMMAND_SELF = "<command-name>/self-improve"
+MIN_AFTER_SESSIONS = 20
+WORKS_RATIO = 0.5
+
+
+def state_dir() -> str:
+    return os.path.expanduser(os.environ.get(
+        "SELF_IMPROVE_STATE", "~/.claude/skills/self-improve/state"))
+
+
+def projects_dir() -> str:
+    return os.path.expanduser(os.environ.get(
+        "SELF_IMPROVE_PROJECTS", "~/.claude/projects"))
+
+
+def fixes_path() -> str:
+    return os.path.join(state_dir(), "fixes.json")
 
 
 def _is_test_path():
@@ -37,7 +51,7 @@ def _is_test_path():
 
 
 def transcripts():
-    return glob.glob(os.path.join(PROJECTS, "*", "*.jsonl"))
+    return glob.glob(os.path.join(projects_dir(), "*", "*.jsonl"))
 
 
 def proj_of(path: str) -> str:
@@ -76,133 +90,504 @@ def normalize_sig(text: str) -> str:
     return m[:90] if m else "(empty)"
 
 
-def read_snapshots(since: str | None):
-    """Latest snapshot per session from friction.jsonl, optionally since a start ts."""
-    latest: dict[str, dict] = {}
+def parse_ts(ts: str) -> datetime | None:
+    if not isinstance(ts, str) or not ts:
+        return None
     try:
-        with open(FRICTION) as fh:
-            for line in fh:
-                try:
-                    r = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                sid = r.get("session")
-                if not sid:
-                    continue
-                latest[sid] = r
-    except OSError:
-        return []
-    rows = list(latest.values())
-    if since:
-        rows = [r for r in rows if (r.get("first_ts") or "") >= since]
-    return rows
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
-def cmd_digest(args) -> int:
-    sigs: Counter = Counter()
-    sig_projects: dict[str, set] = defaultdict(set)
-    sig_example: dict[str, str] = {}
-    reread: Counter = Counter()  # (project, session, path) -> read count
-    n_err = 0
-    for f in transcripts():
-        proj = proj_of(f)
-        session = os.path.basename(f)[:8]
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def iter_sessions():
+    """Yield (project, session id, records) for each transcript, one file at a time."""
+    for path in sorted(transcripts()):
+        records = []
         try:
-            fh = open(f, errors="replace")
+            fh = open(path, errors="replace")
         except OSError:
             continue
         with fh:
             for line in fh:
-                if ('"is_error"' not in line and "tool_use_error" not in line
-                        and '"name":"Read"' not in line and '"name": "Read"' not in line):
+                if not line.strip():
                     continue
                 try:
-                    o = json.loads(line)
+                    rec = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if args.since and (o.get("timestamp", "") or "") < args.since:
-                    continue
-                c = o.get("message", {}).get("content")
-                if not isinstance(c, list):
-                    continue
-                for b in c:
-                    if not isinstance(b, dict):
-                        continue
-                    if b.get("type") == "tool_result" and b.get("is_error"):
-                        txt = content_text(b.get("content"))
-                        if SELF_RE.search(txt):
-                            continue
-                        s = normalize_sig(txt)
-                        sigs[s] += 1
-                        sig_projects[s].add(proj)
-                        n_err += 1
-                        sig_example.setdefault(s, txt.strip().splitlines()[0][:120] if txt.strip() else "")
-                    elif b.get("type") == "tool_use" and b.get("name") == "Read":
-                        inp = b.get("input") or {}
-                        p = inp.get("file_path", "")
-                        # Only a full re-read is waste. A windowed re-read (offset/limit)
-                        # before an edit is correct: it refreshes the exact old_string after
-                        # earlier edits shifted the file, which is how stale-string failures
-                        # are avoided. Counting those flags disciplined editing as friction.
-                        if p and inp.get("offset") is None and inp.get("limit") is None:
-                            reread[(proj, session, p)] += 1
-    print(f"# digest: {n_err} error results across {len(transcripts())} transcripts"
-          + (f" since {args.since}" if args.since else " (all-time)"))
-    print(f"# {len(sigs)} distinct error signatures; top {args.top} by count:\n")
-    for s, n in sigs.most_common(args.top):
-        projs = ",".join(sorted(sig_projects[s])[:6])
-        print(f"{n:5}  [{len(sig_projects[s])} proj: {projs}]")
-        print(f"       sig: {s}")
-        if sig_example.get(s) and sig_example[s] != s:
-            print(f"       e.g. {sig_example[s]}")
-    heavy = [(k, v) for k, v in reread.items() if v >= 3]
-    heavy.sort(key=lambda kv: kv[1], reverse=True)
-    if heavy:
-        print(f"\n# same file FULL-read (no offset/limit) >=3x in one session ({len(heavy)} cases, top 12):")
-        for (proj, sess, path), n in heavy[:12]:
-            print(f"{n:5}  [{proj} {sess}] {path}")
+                if isinstance(rec, dict):
+                    records.append(rec)
+        name = os.path.basename(path)
+        if name.endswith(".jsonl"):
+            name = name[:-len(".jsonl")]
+        yield proj_of(path), name, records
+
+
+def _contains_command(value) -> bool:
+    if isinstance(value, str):
+        return COMMAND_SELF in value
+    if isinstance(value, dict):
+        return any(_contains_command(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_contains_command(v) for v in value)
+    return False
+
+
+def is_self_improve(records: list) -> bool:
+    """A run of this skill contaminates the corpus: it quotes its own detectors."""
+    for rec in records:
+        if _contains_command(rec):
+            return True
+        message = rec.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_use":
+                continue
+            inp = block.get("input")
+            if (block.get("name") == "Skill" and isinstance(inp, dict)
+                    and inp.get("skill") == "self-improve"):
+                return True
+            if inp is not None and SELF_RE.search(json.dumps(inp, default=str)):
+                return True
+    return False
+
+
+def tool_blob(block: dict) -> str:
+    name = block.get("name")
+    if not isinstance(name, str):
+        name = ""
+    try:
+        dumped = json.dumps(block.get("input"))
+    except (TypeError, ValueError):
+        dumped = str(block.get("input"))
+    return name + " " + dumped
+
+
+@dataclass
+class SessionView:
+    project: str
+    session_id: str
+    started: str
+    self_improve: bool
+    errors: list  # (timestamp, text) from user records only
+    tool_blobs: list
+
+
+def session_view(project: str, session_id: str, records: list) -> SessionView:
+    started = ""
+    started_dt = None
+    errors = []
+    blobs = []
+    for rec in records:
+        ts = rec.get("timestamp") if isinstance(rec.get("timestamp"), str) else ""
+        dt = parse_ts(ts)
+        if dt is not None and (started_dt is None or dt < started_dt):
+            started_dt = dt
+            started = ts
+        message = rec.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            continue
+        # Replay records (assistant, api-request blobs) repeat the same tool result.
+        user_record = rec.get("type") == "user"
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use":
+                blobs.append(tool_blob(block))
+            elif user_record and block.get("type") == "tool_result" and block.get("is_error") is True:
+                errors.append((ts, content_text(block.get("content"))))
+    return SessionView(project, session_id, started, is_self_improve(records), errors, blobs)
+
+
+def empty_state() -> dict:
+    return {"fixes": [], "dismissed": []}
+
+
+def read_state() -> dict:
+    path = fixes_path()
+    try:
+        with open(path) as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        return empty_state()
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"warn: {path}: {exc}", file=sys.stderr)
+        return empty_state()
+    if not isinstance(data, dict):
+        print(f"warn: {path}: expected an object", file=sys.stderr)
+        return empty_state()
+    fixes = data.get("fixes")
+    dismissed = data.get("dismissed")
+    return {
+        "fixes": fixes if isinstance(fixes, list) else [],
+        "dismissed": dismissed if isinstance(dismissed, list) else [],
+    }
+
+
+def load_state_strict() -> dict | None:
+    path = fixes_path()
+    try:
+        with open(path) as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        return empty_state()
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"cannot read {path}: {exc}", file=sys.stderr)
+        return None
+    if not isinstance(data, dict):
+        print(f"cannot read {path}: expected an object", file=sys.stderr)
+        return None
+    fixes = data.get("fixes")
+    dismissed = data.get("dismissed")
+    if "fixes" in data and not isinstance(fixes, list):
+        print(f"cannot read {path}: fixes is not a list", file=sys.stderr)
+        return None
+    if "dismissed" in data and not isinstance(dismissed, list):
+        print(f"cannot read {path}: dismissed is not a list", file=sys.stderr)
+        return None
+    return {
+        "fixes": fixes if isinstance(fixes, list) else [],
+        "dismissed": dismissed if isinstance(dismissed, list) else [],
+    }
+
+
+def save_state(data: dict) -> None:
+    directory = state_dir()
+    os.makedirs(directory, exist_ok=True)
+    path = fixes_path()
+    text = json.dumps(data, indent=2) + "\n"
+    tmp = path + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(text)
+    os.replace(tmp, path)
+    os.chmod(path, 0o600)
+
+
+def compile_regex(pattern: str, label: str):
+    try:
+        return re.compile(pattern)
+    except re.error as exc:
+        print(f"warn: bad {label} regex {pattern!r}: {exc}", file=sys.stderr)
+        return None
+
+
+def check_regex(pattern: str | None, label: str) -> bool:
+    if pattern is None:
+        return True
+    try:
+        re.compile(pattern)
+    except re.error as exc:
+        print(f"invalid {label} regex: {exc}", file=sys.stderr)
+        return False
+    return True
+
+
+@dataclass
+class Bucket:
+    sig: str
+    count: int = 0
+    sessions: set = field(default_factory=set)
+    projects: set = field(default_factory=set)
+    labels: list = field(default_factory=list)
+    label_ids: set = field(default_factory=set)
+    dismissed: bool = False
+    first_ts: str = ""
+    first_dt: datetime | None = None
+    last_ts: str = ""
+    last_dt: datetime | None = None
+    last_project: str = ""
+    last_session: str = ""
+
+
+def _fix_rules(data: dict):
+    rules = []
+    for fix in data["fixes"]:
+        if not isinstance(fix, dict):
+            continue
+        pattern = fix.get("signature")
+        if not isinstance(pattern, str) or not pattern:
+            continue
+        cre = compile_regex(pattern, "fix")
+        if cre is None:
+            continue
+        rules.append((cre, str(fix.get("id") or ""), str(fix.get("status") or "")))
+    return rules
+
+
+def _dismissed_rules(data: dict):
+    rules = []
+    for item in data["dismissed"]:
+        if not isinstance(item, dict):
+            continue
+        pattern = item.get("signature")
+        if not isinstance(pattern, str) or not pattern:
+            continue
+        cre = compile_regex(pattern, "dismissed")
+        if cre is not None:
+            rules.append(cre)
+    return rules
+
+
+def iter_views():
+    for project, session_id, records in iter_sessions():
+        yield session_view(project, session_id, records)
+
+
+def cmd_digest(args) -> int:
+    data = read_state()
+    fix_rules = _fix_rules(data)
+    dismissed_rules = _dismissed_rules(data)
+    buckets: dict[str, Bucket] = {}
+    n_err = 0
+    n_read = 0
+    n_skip = 0
+    for view in iter_views():
+        n_read += 1
+        # The whole session is one self-improve run, including errors logged
+        # before the skill invocation that marks it.
+        if view.self_improve:
+            n_skip += 1
+            continue
+        for ts, text in view.errors:
+            if args.since and ts < args.since:
+                continue
+            sig = normalize_sig(text)
+            bucket = buckets.get(sig)
+            if bucket is None:
+                bucket = Bucket(sig)
+                buckets[sig] = bucket
+            bucket.count += 1
+            bucket.sessions.add(view.session_id)
+            bucket.projects.add(view.project)
+            n_err += 1
+            dt = parse_ts(ts)
+            if dt is not None:
+                if bucket.first_dt is None or dt < bucket.first_dt:
+                    bucket.first_dt = dt
+                    bucket.first_ts = ts
+                if bucket.last_dt is None or dt >= bucket.last_dt:
+                    bucket.last_dt = dt
+                    bucket.last_ts = ts
+                    bucket.last_project = view.project
+                    bucket.last_session = view.session_id
+            if not bucket.dismissed:
+                for cre in dismissed_rules:
+                    if cre.search(text):
+                        bucket.dismissed = True
+                        break
+            for cre, fid, status in fix_rules:
+                if fid not in bucket.label_ids and cre.search(text):
+                    bucket.labels.append((fid, status))
+                    bucket.label_ids.add(fid)
+    shown = []
+    hidden = 0
+    for bucket in buckets.values():
+        if bucket.dismissed and not args.all:
+            hidden += 1
+            continue
+        shown.append(bucket)
+    shown.sort(key=lambda b: (-b.count, b.sig))
+    noun = "error result" if n_err == 1 else "error results"
+    sess = "session" if n_read == 1 else "sessions"
+    span = f" since {args.since}" if args.since else ""
+    print(f"# digest: {n_err} {noun} across {n_read} {sess} ({n_skip} self-improve skipped){span}")
+    print(f"# {len(buckets)} distinct signatures; top {args.top}")
+    if hidden:
+        print(f"# dismissed signatures hidden: {hidden}")
+    print()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=args.recent_days)
+    for bucket in shown[: args.top]:
+        projs = ",".join(sorted(bucket.projects)[:6])
+        date = bucket.first_ts[:10] if bucket.first_ts else "-"
+        new = " NEW" if bucket.first_dt is not None and bucket.first_dt >= cutoff else ""
+        labels = "".join(f" [fix {fid} {status}]" for fid, status in bucket.labels)
+        print(f"{bucket.count:5}  [{len(bucket.sessions)} sessions, {len(bucket.projects)} proj: {projs}]"
+              f"  first {date}{new}{labels}")
+        if bucket.last_ts:
+            print(f"       loc: {bucket.last_project} {bucket.last_session[:8]} {bucket.last_ts}")
+        print(f"       sig: {bucket.sig}")
     return 0
 
 
-def cmd_efficiency(args) -> int:
-    rows = read_snapshots(args.since)
-    if not rows:
-        print("no snapshots")
-        return 0
+def _opportunity(view: SessionView, pattern: re.Pattern | None) -> bool:
+    if pattern is None:
+        return True
+    return any(pattern.search(blob) for blob in view.tool_blobs)
 
-    def ratio(r, num, den):
-        d = r.get(den, 0) or 0
-        return (r.get(num, 0) or 0) / d if d else 0.0
 
-    tot = defaultdict(int)
-    for r in rows:
-        for k in ("prompts", "tool_calls", "edit_steps", "retries",
-                  "output_tokens", "cache_read_tokens", "assistant_msgs"):
-            tot[k] += r.get(k, 0) or 0
-    n = len(rows)
-    print(f"# efficiency over {n} sessions"
-          + (f" since {args.since}" if args.since else " (all-time)"))
-    P = tot["prompts"] or 1
-    print(f"  per user prompt: tool_calls {tot['tool_calls']/P:.1f} | "
-          f"edit_steps {tot['edit_steps']/P:.1f} | retries {tot['retries']/P:.2f} | "
-          f"output_tok {tot['output_tokens']//P}")
-    print(f"  totals: prompts {tot['prompts']} | tool_calls {tot['tool_calls']} | "
-          f"retries {tot['retries']} | out_tok {tot['output_tokens']:,} | "
-          f"cache_read_tok {tot['cache_read_tokens']:,}")
+def _has_error(view: SessionView, pattern: re.Pattern) -> bool:
+    return any(pattern.search(text) for _, text in view.errors)
 
-    scored = []
-    for r in rows:
-        scored.append((
-            ratio(r, "retries", "prompts"),
-            ratio(r, "tool_calls", "prompts"),
-            r.get("edit_steps", 0) or 0,
-            r,
-        ))
-    print("\n# high retries/prompt (>=3, min 3 prompts), top 12:")
-    for rp, tc, es, r in sorted([s for s in scored if s[0] >= 3 and (r_ := s[3]).get("prompts", 0) >= 3],
-                                key=lambda s: s[0], reverse=True)[:12]:
-        print(f"  retries/prompt {rp:5.1f}  tool/prompt {tc:5.1f}  edits {es:4}  "
-              f"[{proj_of(r['file'])}] {r['session'][:8]}  {(r.get('first_ts') or '')[:10]}")
+
+def _rate(views, signature: re.Pattern, opportunity: re.Pattern | None,
+          start: datetime | None, end: datetime | None):
+    """Opportunity-session rate for session starts in [start, end). None is an open bound."""
+    sessions = 0
+    hits = 0
+    for view in views:
+        dt = parse_ts(view.started)
+        if dt is None or view.self_improve:
+            continue
+        if start is not None and dt < start:
+            continue
+        if end is not None and dt >= end:
+            continue
+        if not _opportunity(view, opportunity):
+            continue
+        sessions += 1
+        if _has_error(view, signature):
+            hits += 1
+    rate = hits / sessions if sessions else 0.0
+    return rate, sessions
+
+
+def _hook_firings(views, pattern: re.Pattern, shipped: datetime) -> int:
+    n = 0
+    for view in views:
+        for ts, text in view.errors:
+            dt = parse_ts(ts) or parse_ts(view.started)
+            if dt is None or dt < shipped:
+                continue
+            if pattern.search(text):
+                n += 1
+    return n
+
+
+def _views() -> list[SessionView]:
+    return list(iter_views())
+
+
+def cmd_fixes(args) -> int:
+    data = read_state()
+    views = _views()
+    fixes = [f for f in data["fixes"] if isinstance(f, dict)]
+    print(f"# fixes: {len(fixes)} registered")
+    for fix in fixes:
+        print(f"\n{fix.get('id')}")
+        if fix.get("problem"):
+            print(f"  problem: {fix['problem']}")
+        signature = fix.get("signature")
+        if not isinstance(signature, str) or not signature:
+            print(f"  measured by: {fix.get('evidence') or ''}")
+            continue
+        cre = compile_regex(signature, "fix")
+        if cre is None:
+            print("  skipped: invalid signature regex")
+            continue
+        opportunity = fix.get("opportunity")
+        opp = None
+        if isinstance(opportunity, str) and opportunity:
+            opp = compile_regex(opportunity, "opportunity")
+            if opp is None:
+                print("  skipped: invalid opportunity regex")
+                continue
+        hook = fix.get("hook_signature")
+        hook_re = None
+        if isinstance(hook, str) and hook:
+            hook_re = compile_regex(hook, "hook")
+            if hook_re is None:
+                print("  skipped: invalid hook regex")
+                continue
+        shipped = parse_ts(fix.get("shipped") or "")
+        base = fix.get("baseline") if isinstance(fix.get("baseline"), dict) else {}
+        base_rate = float(base.get("rate") or 0.0)
+        base_n = int(base.get("sessions") or 0)
+        base_w = base.get("window_days")
+        if shipped is None:
+            rate, n = 0.0, 0
+            firings = None
+        else:
+            rate, n = _rate(views, cre, opp, shipped, None)
+            firings = _hook_firings(views, hook_re, shipped) if hook_re is not None else None
+        wpart = f" ({base_w}d)" if base_w is not None else ""
+        print(f"  baseline: {base_rate:.3f} over {base_n} sessions{wpart}")
+        print(f"  after: {rate:.3f} over {n} sessions since {fix.get('shipped')}")
+        if firings is None:
+            print("  hook firings since shipped: n/a")
+        else:
+            print(f"  hook firings since shipped: {firings}")
+        if n < MIN_AFTER_SESSIONS:
+            verdict = "pending"
+        elif rate <= WORKS_RATIO * base_rate:
+            verdict = "works"
+        else:
+            verdict = "failing"
+        print(f"  verdict: {verdict}")
+    return 0
+
+
+def compute_baseline(signature: str, opportunity: str | None, shipped: str, window_days: int) -> dict:
+    cre = re.compile(signature)
+    opp = re.compile(opportunity) if opportunity else None
+    end = parse_ts(shipped)
+    start = end - timedelta(days=window_days)
+    views = _views()
+    rate, sessions = _rate(views, cre, opp, start, end)
+    return {"rate": rate, "sessions": sessions, "window_days": window_days}
+
+
+def cmd_fixes_add(args) -> int:
+    if not check_regex(args.signature, "signature"):
+        return 1
+    if not check_regex(args.opportunity, "opportunity"):
+        return 1
+    if not check_regex(args.hook_signature, "hook-signature"):
+        return 1
+    shipped = now_iso() if args.shipped == "now" else args.shipped
+    if parse_ts(shipped) is None:
+        print(f"invalid --shipped: {args.shipped}", file=sys.stderr)
+        return 1
+    data = load_state_strict()
+    if data is None:
+        return 1
+    if any(isinstance(fix, dict) and fix.get("id") == args.id for fix in data["fixes"]):
+        print(f"duplicate id: {args.id}", file=sys.stderr)
+        return 1
+    baseline = None
+    if args.signature:
+        baseline = compute_baseline(args.signature, args.opportunity, shipped, args.window_days)
+    data["fixes"].append({
+        "id": args.id,
+        "shipped": shipped,
+        "mechanism": args.mechanism,
+        "commit": args.commit,
+        "problem": args.problem,
+        "signature": args.signature,
+        "opportunity": args.opportunity,
+        "hook_signature": args.hook_signature,
+        "baseline": baseline,
+        "status": "pending",
+        "evidence": args.evidence,
+    })
+    save_state(data)
+    if baseline is None:
+        print(f"added {args.id} (no signature; baseline not computed)")
+    else:
+        print(f"added {args.id} baseline {baseline['rate']:.3f} over {baseline['sessions']} sessions"
+              f" ({baseline['window_days']}d)")
+    return 0
+
+
+def cmd_fixes_dismiss(args) -> int:
+    if not check_regex(args.signature, "signature"):
+        return 1
+    data = load_state_strict()
+    if data is None:
+        return 1
+    data["dismissed"].append({"signature": args.signature, "reason": args.reason})
+    save_state(data)
+    print(f"dismissed {args.signature}")
     return 0
 
 
@@ -307,14 +692,44 @@ def cmd_skills(args) -> int:
     return 0
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="audit.py")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    d = sub.add_parser("digest"); d.add_argument("--since"); d.add_argument("--top", type=int, default=20)
-    d.set_defaults(fn=cmd_digest)
-    e = sub.add_parser("efficiency"); e.add_argument("--since"); e.set_defaults(fn=cmd_efficiency)
-    s = sub.add_parser("skills"); s.add_argument("--since"); s.set_defaults(fn=cmd_skills)
-    args = ap.parse_args()
+
+    digest = sub.add_parser("digest", help="bucket error tool results by signature")
+    digest.add_argument("--since", help="ISO timestamp; ignore earlier error results")
+    digest.add_argument("--top", type=int, default=20)
+    digest.add_argument("--recent-days", type=int, default=14)
+    digest.add_argument("--all", action="store_true", help="include dismissed signatures")
+    digest.set_defaults(fn=cmd_digest)
+
+    skills = sub.add_parser("skills", help="skill invocation counts")
+    skills.add_argument("--since")
+    skills.set_defaults(fn=cmd_skills)
+
+    fixes = sub.add_parser("fixes", help="measure registered fixes, or change the registry")
+    fixes.set_defaults(fn=cmd_fixes)
+    fixes_sub = fixes.add_subparsers(dest="fixes_cmd")
+
+    add = fixes_sub.add_parser("add", help="register a fix and store its baseline")
+    add.add_argument("--id", required=True)
+    add.add_argument("--problem", required=True)
+    add.add_argument("--mechanism", required=True)
+    add.add_argument("--commit", required=True)
+    add.add_argument("--signature")
+    add.add_argument("--opportunity")
+    add.add_argument("--hook-signature")
+    add.add_argument("--evidence")
+    add.add_argument("--shipped", default="now", help="ISO timestamp, or 'now'")
+    add.add_argument("--window-days", type=int, default=60)
+    add.set_defaults(fn=cmd_fixes_add)
+
+    dismiss = fixes_sub.add_parser("dismiss", help="hide a signature from digest")
+    dismiss.add_argument("--signature", required=True)
+    dismiss.add_argument("--reason", required=True)
+    dismiss.set_defaults(fn=cmd_fixes_dismiss)
+
+    args = ap.parse_args(argv)
     return args.fn(args)
 
 
