@@ -23,7 +23,7 @@ MIN_CONCURRENT = 1
 
 BILLING_MSG = "billing: fetched credits config"
 DEFAULT_STATUSLINE = "~/.grok/statusline.py"
-DEFAULT_BURN = "~/.claude/skills/self-improve/scripts/burn_window.py"
+DEFAULT_BURN = "~/.claude/skills/grok-handoff/scripts/burn_window.py"
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 

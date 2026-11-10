@@ -88,7 +88,7 @@ class ServerTest(unittest.TestCase):
         os.environ["GROK_HOME"] = str(self.home)
         os.environ["GROK_MCP_GROK_STATUSLINE"] = str(SKILL / "grok_statusline.py")
         os.environ["GROK_MCP_PRIVATE_PATHS"] = str(self.root / "private-paths")
-        os.environ["GROK_MCP_BURN_WINDOW"] = str(SKILL.parent / "self-improve" / "scripts" / "burn_window.py")
+        os.environ["GROK_MCP_BURN_WINDOW"] = str(SKILL / "scripts" / "burn_window.py")
         os.environ["CCAR_STATE_JSON"] = str(self.ccar)
         self.head = self.git("rev-parse", "HEAD").stdout.strip()
 
