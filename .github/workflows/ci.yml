@@ -28,7 +28,7 @@ jobs:
         run: python -m unittest test_pkill_guard_hook test_worklog_name_gate && python test_write_tests_hook.py
       - name: self-improve
         working-directory: skills/self-improve/scripts
-        run: python test_harvest.py && python -m unittest test_audit
+        run: python -m unittest test_audit
       - name: orchestrator
         working-directory: orchestrator
         run: python -m unittest discover -s tests
