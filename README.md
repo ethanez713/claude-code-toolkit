@@ -2,8 +2,12 @@
 
 [![CI](https://github.com/ethanez713/claude-code-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/ethanez713/claude-code-toolkit/actions/workflows/ci.yml)
 
-The hooks, skills and MCP server I develop with in Claude Code. In my setup each piece lives
-under `~/.claude/`; the hook and the status line are wired in `settings.json`.
+**Guardrails and tooling for long, mostly unattended Claude Code sessions.** Hooks that
+stop known failure modes before they happen, skills that fire by behaviour rather than by
+name, and an MCP server that hands implementation to a second model on its own quota.
+
+Each piece lives under `~/.claude/` and can be taken alone; the hooks and the status line
+are wired in `settings.json`.
 
 | Piece | What it does |
 |---|---|
